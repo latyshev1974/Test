@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: pg-demo
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    volumes:
+      # Сохранение данных (чтобы не пропали при перезапуске)
+      - pgdata:/var/lib/postgresql/data
+      # Автоматическое создание таблицы при первом старте
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-net
+
+  api:
+    build: .
+    container_name: my-fastapi
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: pg-demo
+      DB_PORT: 5432
+      DB_NAME: mydb
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+    networks:
+      - app-net
+    # Эта команда нужна, если в Dockerfile нет CMD или ты хочешь явно указать запуск
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+volumes:
+  pgdata:
+
+networks:
+  app-net:
+    driver: bridge
